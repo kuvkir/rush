@@ -5,8 +5,8 @@
 #include "bb.h"
 
 // Board dimensions
-#define BOARD_WIDTH 6
-#define BOARD_HEIGHT 5
+#define BOARD_WIDTH 5
+#define BOARD_HEIGHT 6
 
 const int BoardWidth = BOARD_WIDTH;
 const int BoardHeight = BOARD_HEIGHT;
@@ -39,6 +39,7 @@ const int NumWorkers = 4;
 // MaxID values for different board sizes:
 // 4x4: 1348 (no walls), 9803 (0-1 walls), 33952 (0-2 walls), 76837 (0-3 walls)
 // 5x5: 268108 (no walls), 2988669 (0-1 walls), 16330429 (0-2 walls)
+// 5x6: 6097031 (no walls, 41.4 seconds)
 // 6x6: 243502785 (no walls), 3670622351 (0-1 walls), 27403231254 (0-2 walls)
 // 7x7: 561276504436 (5h42m for no walls)
 
@@ -52,8 +53,7 @@ const int NumWorkers = 4;
 #elif BOARD_WIDTH == 7 && BOARD_HEIGHT == 7
     const uint64_t MaxID = 561276504436; // 7x7 - 5h42m
 #elif BOARD_WIDTH == 5 && BOARD_HEIGHT == 6
-    // Estimate for 5x6 - between 5x5 and 6x6
-    const uint64_t MaxID = 10000000; // Conservative estimate
+    const uint64_t MaxID = 6097031; // 5x6 no walls (confirmed)
 #else
     #warning "Using default MaxID for non-standard board size"
     const uint64_t MaxID = 100000000; // Generic large value
