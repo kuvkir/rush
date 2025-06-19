@@ -9,13 +9,25 @@ const int PrimaryRow = 2;
 const int PrimarySize = 2;
 const int MinPieceSize = 2;
 const int MaxPieceSize = 3;
+
+// Master switch for corner walls experiment
+// When enabled, generates puzzles with fixed walls in all 4 corners
+#define CORNER_WALLS 0
+
+#if CORNER_WALLS
 const int MinWalls = 4;  // Fixed corner walls
 const int MaxWalls = 4;  // Only corner walls allowed
+#else
+const int MinWalls = 0;  // Standard generation
+const int MaxWalls = 0;  // No walls
+#endif
+
 const int NumWorkers = 4;
 
 // Configuration for corner walls treatment
 // When enabled, corner walls are treated as inherent board geometry
 // and are exempt from the minimal puzzle check
+// Only relevant when CORNER_WALLS is enabled
 #define CORNER_WALLS_AS_GEOMETRY 0
 
 // const uint64_t MaxID = 1348; // 4x4
@@ -27,7 +39,11 @@ const int NumWorkers = 4;
 // const uint64_t MaxID = 2988669; // 5x5, 0-1 walls
 // const uint64_t MaxID = 16330429; // 5x5, 0-2 walls
 
-const uint64_t MaxID = 243502785; // 6x6 - This is likely too high for corner walls, but will stop early
+#if CORNER_WALLS
+const uint64_t MaxID = 243502785; // 6x6 - Will stop early for corner walls
+#else
+const uint64_t MaxID = 243502785; // 6x6 no walls
+#endif
 // const uint64_t MaxID = 3670622351; // 6x6, 0-1 walls
 // const uint64_t MaxID = 27403231254; // 6x6, 0-2 walls
 

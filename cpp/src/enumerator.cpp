@@ -222,6 +222,7 @@ void Enumerator::ComputeRow(int y, int x, std::vector<Piece> &pieces) {
         return;
     }
     
+#if CORNER_WALLS
     // Check if we're at a corner position that needs a wall
     bool isCorner = false;
     if ((y == 0 || y == BoardSize - 1) && (x == 0 || x == BoardSize - 1)) {
@@ -236,13 +237,16 @@ void Enumerator::ComputeRow(int y, int x, std::vector<Piece> &pieces) {
         pieces.pop_back();
         return;
     }
+#endif
     
-    // For non-corner positions, enumerate normally but skip walls
+    // Enumerate pieces normally
     for (int s = MinPieceSize; s <= MaxPieceSize; s++) {
+#if CORNER_WALLS
         if (s == 1) {
-            // Skip walls for non-corner positions
+            // Skip walls for non-corner positions when using fixed corners
             continue;
         }
+#endif
         if (x + s > BoardSize) {
             continue;
         }
@@ -268,6 +272,7 @@ void Enumerator::ComputeColumn(int x, int y, std::vector<Piece> &pieces) {
         return;
     }
     
+#if CORNER_WALLS
     // Check if we're at a corner position that needs a wall
     bool isCorner = false;
     if ((x == 0 || x == BoardSize - 1) && (y == 0 || y == BoardSize - 1)) {
@@ -279,8 +284,9 @@ void Enumerator::ComputeColumn(int x, int y, std::vector<Piece> &pieces) {
         ComputeColumn(x, y + 1, pieces);
         return;
     }
+#endif
     
-    // For non-corner positions, enumerate normally (no vertical walls)
+    // Enumerate pieces normally (no vertical walls)
     for (int s = MinPieceSize; s <= MaxPieceSize; s++) {
         if (s == 1) {
             // no "vertical" walls

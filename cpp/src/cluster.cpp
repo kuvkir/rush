@@ -103,7 +103,7 @@ Cluster::Cluster(const uint64_t id, const Board &input) :
         if (pieceMoved[i]) {
             continue;
         }
-#if CORNER_WALLS_AS_GEOMETRY
+#if CORNER_WALLS && CORNER_WALLS_AS_GEOMETRY
         // Skip minimal check for corner walls (treat as board geometry)
         const auto &piece = input.Pieces()[i];
         if (piece.Fixed()) {

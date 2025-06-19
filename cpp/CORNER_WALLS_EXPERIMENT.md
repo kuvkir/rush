@@ -126,12 +126,34 @@ std::string Board::String() const {
 }
 ```
 
-## CORNER_WALLS_AS_GEOMETRY Configuration
+## Configuration Flags
 
-To explore the full puzzle space with corner walls, we added a configuration option:
+We added two configuration flags to control the corner walls experiment:
+
+### CORNER_WALLS Flag
+
+This is the master switch for the corner walls experiment:
 
 ```cpp
 // In config.h
+#define CORNER_WALLS 0  // 0 = standard generation, 1 = corner walls
+```
+
+When enabled:
+- Sets MinWalls = 4, MaxWalls = 4 (exactly 4 walls)
+- Forces walls to be placed at the 4 corner positions during enumeration
+- Prevents walls from being placed at non-corner positions
+
+When disabled:
+- Sets MinWalls = 0, MaxWalls = 0 (no walls)
+- Standard Rush Hour puzzle generation
+
+### CORNER_WALLS_AS_GEOMETRY Flag
+
+This secondary flag controls how corner walls are treated (only relevant when CORNER_WALLS = 1):
+
+```cpp
+// In config.h  
 #define CORNER_WALLS_AS_GEOMETRY 0  // 0 = strict minimal, 1 = walls as geometry
 ```
 
@@ -237,10 +259,18 @@ x . E D D x
 
 ## How to Run
 
-### For strict minimal puzzles (puzzle purist approach):
+### For standard generation (no walls):
 ```bash
 cd cpp
-# Ensure CORNER_WALLS_AS_GEOMETRY is 0 in config.h
+# Set CORNER_WALLS to 0 in config.h
+make clean && make
+./main > standard_puzzles.txt 2> progress.log
+```
+
+### For strict minimal puzzles with corner walls:
+```bash
+cd cpp
+# Set CORNER_WALLS to 1 and CORNER_WALLS_AS_GEOMETRY to 0 in config.h
 make clean && make
 ./main > corner_walls_minimal.txt 2> progress.log
 ```
@@ -249,7 +279,7 @@ make clean && make
 ### For all puzzles with corner walls as geometry:
 ```bash
 cd cpp
-# Set CORNER_WALLS_AS_GEOMETRY to 1 in config.h
+# Set CORNER_WALLS to 1 and CORNER_WALLS_AS_GEOMETRY to 1 in config.h
 make clean && make
 ./main > corner_walls_geometry.txt 2> progress.log  
 ```
