@@ -13,6 +13,11 @@ const int MinWalls = 4;  // Fixed corner walls
 const int MaxWalls = 4;  // Only corner walls allowed
 const int NumWorkers = 4;
 
+// Configuration for corner walls treatment
+// When enabled, corner walls are treated as inherent board geometry
+// and are exempt from the minimal puzzle check
+#define CORNER_WALLS_AS_GEOMETRY 0
+
 // const uint64_t MaxID = 1348; // 4x4
 // const uint64_t MaxID = 9803; // 4x4, 0-1 walls
 // const uint64_t MaxID = 33952; // 4x4, 0-2 walls

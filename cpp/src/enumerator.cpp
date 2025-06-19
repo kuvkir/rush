@@ -36,17 +36,6 @@ Enumerator::Enumerator() {
 
 void Enumerator::Enumerate(EnumeratorFunc func) {
     Board board;
-    
-    // Add fixed walls in all four corners
-    // Top-left corner (0)
-    board.AddPiece(Piece(0, 1, H));
-    // Top-right corner (BoardSize - 1)
-    board.AddPiece(Piece(BoardSize - 1, 1, H));
-    // Bottom-left corner (BoardSize * (BoardSize - 1))
-    board.AddPiece(Piece(BoardSize * (BoardSize - 1), 1, H));
-    // Bottom-right corner (BoardSize * BoardSize - 1)
-    board.AddPiece(Piece(BoardSize * BoardSize - 1, 1, H));
-    
     uint64_t id = 0;
     PopulatePrimaryRow(func, board, id);
 }
@@ -54,42 +43,12 @@ void Enumerator::Enumerate(EnumeratorFunc func) {
 void Enumerator::PopulatePrimaryRow(
     EnumeratorFunc func, Board &board, uint64_t &id) const
 {
-    // Save the current board state (with walls)
-    Board wallBoard = board;
-    
     for (const auto &pe : m_RowEntries[PrimaryRow]) {
-        // Start fresh - primary piece must be first
-        board = Board();
-        
-        // Add primary row pieces first (so primary piece is at index 0)
         for (const auto &piece : pe.Pieces()) {
             board.AddPiece(piece);
         }
-        
-        // Then add the walls
-        for (const auto &wallPiece : wallBoard.Pieces()) {
-            board.AddPiece(wallPiece);
-        }
-        
-        // Check if this configuration has any collisions
-        bool hasCollision = false;
-        bb pieceMask = 0;
-        for (const auto &piece : board.Pieces()) {
-            if ((pieceMask & piece.Mask()) != 0) {
-                hasCollision = true;
-                break;
-            }
-            pieceMask |= piece.Mask();
-        }
-        
-        if (hasCollision) {
-            continue;
-        }
-        
-        PopulateRow(func, board, id, 0, board.Mask(), pe.Require());
-        
-        // Remove all pieces to prepare for next iteration
-        while (board.Pieces().size() > wallBoard.Pieces().size()) {
+        PopulateRow(func, board, id, 0, pe.Mask(), pe.Require());
+        for (int i = 0; i < pe.Pieces().size(); i++) {
             board.PopPiece();
         }
     }
@@ -99,7 +58,20 @@ void Enumerator::PopulateRow(
     EnumeratorFunc func, Board &board, uint64_t &id, int y,
     bb mask, bb require) const
 {
-    // Skip wall checks since we have fixed corner walls
+    if (DoWalls) {
+        int walls = 0;
+        for (const auto &piece : board.Pieces()) {
+            if (piece.Fixed()) {
+                walls++;
+            }
+        }
+        if (y >= BoardSize && walls > MaxWalls) {
+            return;
+        }
+        if (y >= BoardSize && walls < MinWalls) {
+            return;
+        }
+    }
     if (y >= BoardSize) {
         PopulateColumn(func, board, id, 0, mask, require);
         return;
@@ -160,16 +132,6 @@ void Enumerator::ComputeGroups(std::vector<int> &sizes, int sum) {
     if (sum >= BoardSize) {
         return;
     }
-    int walls = 0;
-    for (const int size : sizes) {
-        if (size == 1) {
-            walls++;
-        }
-    }
-    // Don't allow any walls in groups since we have fixed corner walls
-    if (walls > 0) {
-        return;
-    }
     m_Groups.push_back(sizes);
     for (int s = MinPieceSize; s <= MaxPieceSize; s++) {
         sizes.push_back(s);
@@ -179,14 +141,23 @@ void Enumerator::ComputeGroups(std::vector<int> &sizes, int sum) {
 }
 
 int Enumerator::GroupForPieces(const std::vector<Piece> &pieces) {
+    // Extract non-wall piece sizes
+    std::vector<int> sizes;
+    for (const auto &piece : pieces) {
+        if (!piece.Fixed()) {
+            sizes.push_back(piece.Size());
+        }
+    }
+    
+    // Find matching group
     for (int i = 0; i < m_Groups.size(); i++) {
         const auto &group = m_Groups[i];
-        if (group.size() != pieces.size()) {
+        if (group.size() != sizes.size()) {
             continue;
         }
         bool ok = true;
         for (int j = 0; j < group.size(); j++) {
-            if (group[j] != pieces[j].Size()) {
+            if (group[j] != sizes[j]) {
                 ok = false;
                 break;
             }
@@ -208,7 +179,9 @@ void Enumerator::ComputeRow(int y, int x, std::vector<Piece> &pieces) {
                 walls++;
             }
         }
-        // Don't check for walls here since we have fixed corner walls
+        if (walls > MaxWalls) {
+            return;
+        }
         if (n >= BoardSize) {
             return;
         }
@@ -248,7 +221,28 @@ void Enumerator::ComputeRow(int y, int x, std::vector<Piece> &pieces) {
         m_RowEntries[y].emplace_back(PositionEntry(group, ps));
         return;
     }
+    
+    // Check if we're at a corner position that needs a wall
+    bool isCorner = false;
+    if ((y == 0 || y == BoardSize - 1) && (x == 0 || x == BoardSize - 1)) {
+        isCorner = true;
+    }
+    
+    if (isCorner) {
+        // Must place a wall here
+        const int p = y * BoardSize + x;
+        pieces.emplace_back(Piece(p, 1, H));  // Size 1 = wall
+        ComputeRow(y, x + 1, pieces);
+        pieces.pop_back();
+        return;
+    }
+    
+    // For non-corner positions, enumerate normally but skip walls
     for (int s = MinPieceSize; s <= MaxPieceSize; s++) {
+        if (s == 1) {
+            // Skip walls for non-corner positions
+            continue;
+        }
         if (x + s > BoardSize) {
             continue;
         }
@@ -273,6 +267,20 @@ void Enumerator::ComputeColumn(int x, int y, std::vector<Piece> &pieces) {
         m_ColumnEntries[x].emplace_back(PositionEntry(group, pieces));
         return;
     }
+    
+    // Check if we're at a corner position that needs a wall
+    bool isCorner = false;
+    if ((x == 0 || x == BoardSize - 1) && (y == 0 || y == BoardSize - 1)) {
+        isCorner = true;
+    }
+    
+    if (isCorner) {
+        // Corner positions are handled by rows, skip in columns
+        ComputeColumn(x, y + 1, pieces);
+        return;
+    }
+    
+    // For non-corner positions, enumerate normally (no vertical walls)
     for (int s = MinPieceSize; s <= MaxPieceSize; s++) {
         if (s == 1) {
             // no "vertical" walls

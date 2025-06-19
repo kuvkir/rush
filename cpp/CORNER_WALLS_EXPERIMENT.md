@@ -6,7 +6,38 @@ This experiment adds fixed walls in all four corners of the Rush Hour board duri
 
 ## Key Findings
 
-Out of 6,329,234 board configurations evaluated, only **11 puzzles** met all criteria (canonical, solvable, and minimal) with 4 corner walls. This severe constraint demonstrates how fixed walls dramatically limit the viable puzzle space.
+### Initial Incorrect Result: Only 11 Puzzles
+
+Our first implementation found only 11 puzzles out of 6,329,234 configurations. This was incorrect - we weren't exhaustively searching the space.
+
+### Root Cause: Pre-placing Walls
+
+The initial approach pre-placed walls in the `Enumerate()` function before the normal enumeration process:
+```cpp
+board.AddPiece(Piece(0, 1, H));   // Top-left corner
+board.AddPiece(Piece(5, 1, H));   // Top-right corner
+board.AddPiece(Piece(30, 1, H));  // Bottom-left corner
+board.AddPiece(Piece(35, 1, H));  // Bottom-right corner
+```
+
+This approach failed to generate simple configurations like:
+- Red car + 4 corner walls only (1-2 move puzzle)
+- Red car + 1-2 blocks + 4 corner walls (2-5 move puzzles)
+
+### Correct Implementation: Walls During Enumeration
+
+We modified the enumerator to place walls at corner positions during its normal enumeration process:
+- Modified `ComputeRow()` to force wall placement when at corner positions
+- Prevented non-corner positions from having walls (skip size 1 pieces)
+- Fixed `GroupForPieces()` to handle walls correctly
+
+This exhaustive search found **569 puzzles** that are canonical, solvable, AND minimal.
+
+### The Minimal Check Issue
+
+The Rush Hour generator has a "minimal" requirement: every piece must be necessary for the puzzle. If removing a piece still allows the same solution length, the puzzle isn't minimal.
+
+Corner walls often aren't "necessary" - many puzzles can be solved in the same number of moves without them. This explains why we find relatively few puzzles (569) even with exhaustive search.
 
 ## Implementation Details
 
@@ -95,36 +126,133 @@ std::string Board::String() const {
 }
 ```
 
+## CORNER_WALLS_AS_GEOMETRY Configuration
+
+To explore the full puzzle space with corner walls, we added a configuration option:
+
+```cpp
+// In config.h
+#define CORNER_WALLS_AS_GEOMETRY 0  // 0 = strict minimal, 1 = walls as geometry
+```
+
+### When CORNER_WALLS_AS_GEOMETRY = 0 (Default)
+
+This is the "puzzle purist" approach:
+- Corner walls must be **necessary** for the puzzle
+- If removing a corner wall doesn't change the solution length, the puzzle isn't minimal
+- Results: **569 puzzles** found
+- Philosophically correct: every piece must contribute meaningfully to the puzzle
+
+### When CORNER_WALLS_AS_GEOMETRY = 1
+
+This treats corner walls as inherent board geometry:
+- Corner walls are exempt from the minimal check
+- They're considered part of the board structure, not removable pieces
+- Results: **35,646 puzzles** found
+- Includes trivial puzzles like red car + walls only (1 move solution)
+
+### Implementation in cluster.cpp
+
+```cpp
+for (int i = 1; i < pieceMoved.size(); i++) {
+    if (pieceMoved[i]) {
+        continue;
+    }
+#if CORNER_WALLS_AS_GEOMETRY
+    // Skip minimal check for corner walls (treat as board geometry)
+    const auto &piece = input.Pieces()[i];
+    if (piece.Fixed()) {
+        const int pos = piece.Position();
+        const int x = pos % BoardSize;
+        const int y = pos / BoardSize;
+        if ((x == 0 || x == BoardSize - 1) && (y == 0 || y == BoardSize - 1)) {
+            // This is a corner wall, skip minimal check
+            continue;
+        }
+    }
+#endif
+    // ... rest of minimal check
+}
+```
+
+### Which is More Correct?
+
+From a **puzzle purist perspective**, `CORNER_WALLS_AS_GEOMETRY = 0` is more correct:
+- It maintains the principle that every piece must be necessary
+- Puzzles are truly minimal - removing ANY piece would make them easier
+- This is consistent with how the standard Rush Hour puzzle database was generated
+
+However, `CORNER_WALLS_AS_GEOMETRY = 1` is useful for:
+- Game variants where corners are always blocked
+- Finding simple tutorial puzzles
+- Exploring the full mathematical space of corner wall configurations
+
 ## Results
 
-The 11 puzzles found range from 11 to 20 moves in difficulty. Example puzzle:
+### With Strict Minimal Check (CORNER_WALLS_AS_GEOMETRY = 0)
+- **569 puzzles** found
+- Simplest puzzle requires 8 moves
+- All corner walls are necessary for maintaining difficulty
+
+### With Walls as Geometry (CORNER_WALLS_AS_GEOMETRY = 1)  
+- **35,646 puzzles** found
+- Simplest puzzle requires just 1 move
+- Includes many trivial configurations
+
+Example of simplest puzzle (1 move, only with CORNER_WALLS_AS_GEOMETRY = 1):
 
 ```
-x . . . . x 
-E B B G . H 
-E A A G . H 
-C C F G . . 
-. . F D D . 
-x . . . . x 
+x . . . . x
+. . . . . .
+. . A A . .
+. . . . . .
+. . . . . .
+x . . . . x
 ```
 
-- `x` = fixed corner walls
-- `AA` = red car (must reach right edge of row 2)
-- Other letters = blocking pieces
-- Requires 12 moves to solve
+- Just the red car and 4 corner walls
+- Red car slides right once to win
+
+Example of a typical minimal puzzle (with CORNER_WALLS_AS_GEOMETRY = 0):
+
+```
+x . B B . x 
+. . . F . .
+. . A A F .
+. C C C F .
+. . . . E .
+x . E D D x
+```
+
+- Requires 11 moves to solve
+- Every piece (including corner walls) is necessary
 
 ## Lessons Learned
 
-1. **Piece ordering matters**: The codebase makes assumptions about piece indices that must be respected
-2. **Fixed obstacles severely constrain puzzles**: 4 corner walls reduced viable puzzles by ~99.9%
-3. **Canonical representation is complex**: With pre-placed walls, many configurations become non-canonical because moves can lead to "smaller" board states
+1. **Piece ordering matters**: The codebase assumes piece[0] is the primary piece for `Solved()` checks
+2. **Pre-placing vs. enumeration**: Pre-placing walls breaks the exhaustive enumeration - walls must be placed during the normal enumeration process
+3. **Minimal requirement is strict**: The standard minimal check ensures every piece contributes meaningfully to the puzzle
+4. **Board geometry vs. pieces**: There's a philosophical difference between treating obstacles as removable pieces vs. fixed board geometry
+5. **Exhaustive search is crucial**: Initial approaches that seemed logical (pre-placing walls) can miss large portions of the search space
 
 ## How to Run
 
+### For strict minimal puzzles (puzzle purist approach):
 ```bash
 cd cpp
+# Ensure CORNER_WALLS_AS_GEOMETRY is 0 in config.h
 make clean && make
-./main > corner_walls_output.txt 2> progress.log
+./main > corner_walls_minimal.txt 2> progress.log
 ```
+- Generates ~569 puzzles in ~9.5 hours
 
-The generation takes about 28 minutes on a modern machine and produces a complete database of all valid corner wall puzzles.
+### For all puzzles with corner walls as geometry:
+```bash
+cd cpp
+# Set CORNER_WALLS_AS_GEOMETRY to 1 in config.h
+make clean && make
+./main > corner_walls_geometry.txt 2> progress.log  
+```
+- Generates ~35,646 puzzles in ~9.5 hours
+
+Both runs evaluate the same 30+ million configurations but apply different minimal criteria.
