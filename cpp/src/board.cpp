@@ -193,9 +193,9 @@ std::string Board::String() const {
 }
 
 std::string Board::String2D() const {
-    std::string s(BoardSize * (BoardSize + 1), '.');
-    for (int y = 0; y < BoardSize; y++) {
-        const int p = y * (BoardSize + 1) + BoardSize;
+    std::string s(BoardWidth * (BoardHeight + 1), '.');
+    for (int y = 0; y < BoardHeight; y++) {
+        const int p = y * (BoardWidth + 1) + BoardWidth;
         s[p] = '\n';
     }
     int nonWallIndex = 0;
@@ -212,9 +212,9 @@ std::string Board::String2D() const {
         if (stride == V) {
             stride++;
         }
-        const int y = piece.Position() / BoardSize;
-        const int x = piece.Position() % BoardSize;
-        int p = y * (BoardSize + 1) + x;
+        const int y = piece.Position() / BoardWidth;
+        const int x = piece.Position() % BoardWidth;
+        int p = y * (BoardWidth + 1) + x;
         for (int j = 0; j < piece.Size(); j++) {
             s[p] = c;
             p += stride;

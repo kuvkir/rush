@@ -108,9 +108,9 @@ Cluster::Cluster(const uint64_t id, const Board &input) :
         const auto &piece = input.Pieces()[i];
         if (piece.Fixed()) {
             const int pos = piece.Position();
-            const int x = pos % BoardSize;
-            const int y = pos / BoardSize;
-            if ((x == 0 || x == BoardSize - 1) && (y == 0 || y == BoardSize - 1)) {
+            const int x = pos % BoardWidth;
+            const int y = pos / BoardWidth;
+            if ((x == 0 || x == BoardWidth - 1) && (y == 0 || y == BoardHeight - 1)) {
                 // This is a corner wall, skip minimal check
                 continue;
             }

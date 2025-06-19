@@ -5,11 +5,12 @@
 #include "bb.h"
 
 // Board dimensions
-#define BOARD_WIDTH 5
+#define BOARD_WIDTH 6
 #define BOARD_HEIGHT 5
-#define BOARD_SIZE 5  // For now, must equal WIDTH and HEIGHT (square boards only)
 
-const int BoardSize = BOARD_SIZE;
+const int BoardWidth = BOARD_WIDTH;
+const int BoardHeight = BOARD_HEIGHT;
+const int BoardSize = BoardWidth;  // Keep for compatibility, will phase out
 const int PrimaryRow = 2;
 const int PrimarySize = 2;
 const int MinPieceSize = 2;
@@ -41,38 +42,35 @@ const int NumWorkers = 4;
 // 6x6: 243502785 (no walls), 3670622351 (0-1 walls), 27403231254 (0-2 walls)
 // 7x7: 561276504436 (5h42m for no walls)
 
-#if BOARD_SIZE == 5
-    #if CORNER_WALLS
-    const uint64_t MaxID = 268108; // 5x5 - Will stop early for corner walls
-    #else
+// MaxID selection based on board dimensions
+#if BOARD_WIDTH == 5 && BOARD_HEIGHT == 5
     const uint64_t MaxID = 268108; // 5x5 no walls
-    #endif
-#elif BOARD_SIZE == 6
-    #if CORNER_WALLS
-    const uint64_t MaxID = 243502785; // 6x6 - Will stop early for corner walls
-    #else
+#elif BOARD_WIDTH == 6 && BOARD_HEIGHT == 6
     const uint64_t MaxID = 243502785; // 6x6 no walls
-    #endif
-#elif BOARD_SIZE == 4
+#elif BOARD_WIDTH == 4 && BOARD_HEIGHT == 4
     const uint64_t MaxID = 1348; // 4x4
-#elif BOARD_SIZE == 7
+#elif BOARD_WIDTH == 7 && BOARD_HEIGHT == 7
     const uint64_t MaxID = 561276504436; // 7x7 - 5h42m
+#elif BOARD_WIDTH == 5 && BOARD_HEIGHT == 6
+    // Estimate for 5x6 - between 5x5 and 6x6
+    const uint64_t MaxID = 10000000; // Conservative estimate
 #else
-    #error "Unsupported board size"
+    #warning "Using default MaxID for non-standard board size"
+    const uint64_t MaxID = 100000000; // Generic large value
 #endif
 
-const int BoardSize2 = BoardSize * BoardSize;
-const int Target = PrimaryRow * BoardSize + BoardSize - PrimarySize;
+const int BoardSize2 = BoardWidth * BoardHeight;
+const int Target = PrimaryRow * BoardWidth + BoardWidth - PrimarySize;
 const int H = 1; // horizontal stride
-const int V = BoardSize; // vertical stride
+const int V = BoardWidth; // vertical stride
 const bool DoWalls = MinPieceSize == 1;
 
-const std::array<bb, BoardSize> RowMasks = []() {
-    std::array<bb, BoardSize> rowMasks;
-    for (int y = 0; y < BoardSize; y++) {
+const std::array<bb, BoardHeight> RowMasks = []() {
+    std::array<bb, BoardHeight> rowMasks;
+    for (int y = 0; y < BoardHeight; y++) {
         bb mask = 0;
-        for (int x = 0; x < BoardSize; x++) {
-            const int i = y * BoardSize + x;
+        for (int x = 0; x < BoardWidth; x++) {
+            const int i = y * BoardWidth + x;
             mask |= (bb)1 << i;
         }
         rowMasks[y] = mask;
@@ -80,12 +78,12 @@ const std::array<bb, BoardSize> RowMasks = []() {
     return rowMasks;
 }();
 
-const std::array<bb, BoardSize> ColumnMasks = []() {
-    std::array<bb, BoardSize> columnMasks;
-    for (int x = 0; x < BoardSize; x++) {
+const std::array<bb, BoardWidth> ColumnMasks = []() {
+    std::array<bb, BoardWidth> columnMasks;
+    for (int x = 0; x < BoardWidth; x++) {
         bb mask = 0;
-        for (int y = 0; y < BoardSize; y++) {
-            const int i = y * BoardSize + x;
+        for (int y = 0; y < BoardHeight; y++) {
+            const int i = y * BoardWidth + x;
             mask |= (bb)1 << i;
         }
         columnMasks[x] = mask;

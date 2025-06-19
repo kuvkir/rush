@@ -65,14 +65,14 @@ void Enumerator::PopulateRow(
                 walls++;
             }
         }
-        if (y >= BoardSize && walls > MaxWalls) {
+        if (y >= BoardHeight && walls > MaxWalls) {
             return;
         }
-        if (y >= BoardSize && walls < MinWalls) {
+        if (y >= BoardHeight && walls < MinWalls) {
             return;
         }
     }
-    if (y >= BoardSize) {
+    if (y >= BoardHeight) {
         PopulateColumn(func, board, id, 0, mask, require);
         return;
     }
@@ -100,7 +100,7 @@ void Enumerator::PopulateColumn(
     EnumeratorFunc func, Board &board, uint64_t &id, int x,
     bb mask, bb require) const
 {
-    if (x >= BoardSize) {
+    if (x >= BoardWidth) {
         func(id, board);
         id++;
         return;
@@ -129,7 +129,9 @@ void Enumerator::PopulateColumn(
 }
 
 void Enumerator::ComputeGroups(std::vector<int> &sizes, int sum) {
-    if (sum >= BoardSize) {
+    // Use the maximum dimension to ensure we compute enough groups
+    const int maxDimension = std::max(BoardWidth, BoardHeight);
+    if (sum >= maxDimension) {
         return;
     }
     m_Groups.push_back(sizes);
@@ -170,7 +172,7 @@ int Enumerator::GroupForPieces(const std::vector<Piece> &pieces) {
 }
 
 void Enumerator::ComputeRow(int y, int x, std::vector<Piece> &pieces) {
-    if (x >= BoardSize) {
+    if (x >= BoardWidth) {
         int n = 0;
         int walls = 0;
         for (const auto &piece : pieces) {
@@ -182,7 +184,7 @@ void Enumerator::ComputeRow(int y, int x, std::vector<Piece> &pieces) {
         if (walls > MaxWalls) {
             return;
         }
-        if (n >= BoardSize) {
+        if (n >= BoardWidth) {
             return;
         }
         std::vector<Piece> ps = pieces;
@@ -225,13 +227,13 @@ void Enumerator::ComputeRow(int y, int x, std::vector<Piece> &pieces) {
 #if CORNER_WALLS
     // Check if we're at a corner position that needs a wall
     bool isCorner = false;
-    if ((y == 0 || y == BoardSize - 1) && (x == 0 || x == BoardSize - 1)) {
+    if ((y == 0 || y == BoardHeight - 1) && (x == 0 || x == BoardWidth - 1)) {
         isCorner = true;
     }
     
     if (isCorner) {
         // Must place a wall here
-        const int p = y * BoardSize + x;
+        const int p = y * BoardWidth + x;
         pieces.emplace_back(Piece(p, 1, H));  // Size 1 = wall
         ComputeRow(y, x + 1, pieces);
         pieces.pop_back();
@@ -247,10 +249,10 @@ void Enumerator::ComputeRow(int y, int x, std::vector<Piece> &pieces) {
             continue;
         }
 #endif
-        if (x + s > BoardSize) {
+        if (x + s > BoardWidth) {
             continue;
         }
-        const int p = y * BoardSize + x;
+        const int p = y * BoardWidth + x;
         pieces.emplace_back(Piece(p, s, H));
         ComputeRow(y, x + s, pieces);
         pieces.pop_back();
@@ -259,12 +261,12 @@ void Enumerator::ComputeRow(int y, int x, std::vector<Piece> &pieces) {
 }
 
 void Enumerator::ComputeColumn(int x, int y, std::vector<Piece> &pieces) {
-    if (y >= BoardSize) {
+    if (y >= BoardHeight) {
         int n = 0;
         for (const auto &piece : pieces) {
             n += piece.Size();
         }
-        if (n >= BoardSize) {
+        if (n >= BoardHeight) {
             return;
         }
         const int group = GroupForPieces(pieces);
@@ -275,7 +277,7 @@ void Enumerator::ComputeColumn(int x, int y, std::vector<Piece> &pieces) {
 #if CORNER_WALLS
     // Check if we're at a corner position that needs a wall
     bool isCorner = false;
-    if ((x == 0 || x == BoardSize - 1) && (y == 0 || y == BoardSize - 1)) {
+    if ((x == 0 || x == BoardHeight - 1) && (y == 0 || y == BoardHeight - 1)) {
         isCorner = true;
     }
     
@@ -292,10 +294,10 @@ void Enumerator::ComputeColumn(int x, int y, std::vector<Piece> &pieces) {
             // no "vertical" walls
             continue;
         }
-        if (y + s > BoardSize) {
+        if (y + s > BoardHeight) {
             continue;
         }
-        const int p = y * BoardSize + x;
+        const int p = y * BoardWidth + x;
         pieces.emplace_back(Piece(p, s, V));
         ComputeColumn(x, y + s, pieces);
         pieces.pop_back();
@@ -304,19 +306,23 @@ void Enumerator::ComputeColumn(int x, int y, std::vector<Piece> &pieces) {
 }
 
 void Enumerator::ComputePositionEntries() {
-    m_RowEntries.resize(BoardSize);
-    m_ColumnEntries.resize(BoardSize);
+    m_RowEntries.resize(BoardHeight);
+    m_ColumnEntries.resize(BoardWidth);
     std::vector<Piece> pieces;
-    for (int i = 0; i < BoardSize; i++) {
+    for (int i = 0; i < BoardHeight; i++) {
         ComputeRow(i, 0, pieces);
+    }
+    for (int i = 0; i < BoardWidth; i++) {
         ComputeColumn(i, 0, pieces);
     }
-    for (int i = 0; i < BoardSize; i++) {
+    for (int i = 0; i < BoardHeight; i++) {
         std::stable_sort(m_RowEntries[i].begin(), m_RowEntries[i].end(),
             [](const PositionEntry &a, const PositionEntry &b)
         {
             return a.Group() < b.Group();
         });
+    }
+    for (int i = 0; i < BoardWidth; i++) {
         std::stable_sort(m_ColumnEntries[i].begin(), m_ColumnEntries[i].end(),
             [](const PositionEntry &a, const PositionEntry &b)
         {
