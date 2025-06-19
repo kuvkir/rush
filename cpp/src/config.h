@@ -4,7 +4,12 @@
 
 #include "bb.h"
 
-const int BoardSize = 6;
+// Board dimensions
+#define BOARD_WIDTH 5
+#define BOARD_HEIGHT 5
+#define BOARD_SIZE 5  // For now, must equal WIDTH and HEIGHT (square boards only)
+
+const int BoardSize = BOARD_SIZE;
 const int PrimaryRow = 2;
 const int PrimarySize = 2;
 const int MinPieceSize = 2;
@@ -30,24 +35,31 @@ const int NumWorkers = 4;
 // Only relevant when CORNER_WALLS is enabled
 #define CORNER_WALLS_AS_GEOMETRY 0
 
-// const uint64_t MaxID = 1348; // 4x4
-// const uint64_t MaxID = 9803; // 4x4, 0-1 walls
-// const uint64_t MaxID = 33952; // 4x4, 0-2 walls
-// const uint64_t MaxID = 76837; // 4x4, 0-3 walls
+// MaxID values for different board sizes:
+// 4x4: 1348 (no walls), 9803 (0-1 walls), 33952 (0-2 walls), 76837 (0-3 walls)
+// 5x5: 268108 (no walls), 2988669 (0-1 walls), 16330429 (0-2 walls)
+// 6x6: 243502785 (no walls), 3670622351 (0-1 walls), 27403231254 (0-2 walls)
+// 7x7: 561276504436 (5h42m for no walls)
 
-// const uint64_t MaxID = 268108; // 5x5
-// const uint64_t MaxID = 2988669; // 5x5, 0-1 walls
-// const uint64_t MaxID = 16330429; // 5x5, 0-2 walls
-
-#if CORNER_WALLS
-const uint64_t MaxID = 243502785; // 6x6 - Will stop early for corner walls
+#if BOARD_SIZE == 5
+    #if CORNER_WALLS
+    const uint64_t MaxID = 268108; // 5x5 - Will stop early for corner walls
+    #else
+    const uint64_t MaxID = 268108; // 5x5 no walls
+    #endif
+#elif BOARD_SIZE == 6
+    #if CORNER_WALLS
+    const uint64_t MaxID = 243502785; // 6x6 - Will stop early for corner walls
+    #else
+    const uint64_t MaxID = 243502785; // 6x6 no walls
+    #endif
+#elif BOARD_SIZE == 4
+    const uint64_t MaxID = 1348; // 4x4
+#elif BOARD_SIZE == 7
+    const uint64_t MaxID = 561276504436; // 7x7 - 5h42m
 #else
-const uint64_t MaxID = 243502785; // 6x6 no walls
+    #error "Unsupported board size"
 #endif
-// const uint64_t MaxID = 3670622351; // 6x6, 0-1 walls
-// const uint64_t MaxID = 27403231254; // 6x6, 0-2 walls
-
-// const uint64_t MaxID = 561276504436; // 7x7 - 5h42m
 
 const int BoardSize2 = BoardSize * BoardSize;
 const int Target = PrimaryRow * BoardSize + BoardSize - PrimarySize;
