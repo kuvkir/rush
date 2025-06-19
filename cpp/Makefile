@@ -14,7 +14,7 @@ RCOMPILE_FLAGS = -D NDEBUG
 # Additional debug-specific flags
 DCOMPILE_FLAGS = -D DEBUG
 # Add additional include paths
-INCLUDES = -I $(SRC_PATH)
+INCLUDES = -I $(SRC_PATH) -I/opt/homebrew/opt/boost/include
 # General linker settings
 LINK_FLAGS = -flto -O3
 # Additional release-specific linker settings

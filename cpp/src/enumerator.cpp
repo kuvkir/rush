@@ -36,6 +36,17 @@ Enumerator::Enumerator() {
 
 void Enumerator::Enumerate(EnumeratorFunc func) {
     Board board;
+    
+    // Add fixed walls in all four corners
+    // Top-left corner (0)
+    board.AddPiece(Piece(0, 1, H));
+    // Top-right corner (BoardSize - 1)
+    board.AddPiece(Piece(BoardSize - 1, 1, H));
+    // Bottom-left corner (BoardSize * (BoardSize - 1))
+    board.AddPiece(Piece(BoardSize * (BoardSize - 1), 1, H));
+    // Bottom-right corner (BoardSize * BoardSize - 1)
+    board.AddPiece(Piece(BoardSize * BoardSize - 1, 1, H));
+    
     uint64_t id = 0;
     PopulatePrimaryRow(func, board, id);
 }
@@ -43,12 +54,42 @@ void Enumerator::Enumerate(EnumeratorFunc func) {
 void Enumerator::PopulatePrimaryRow(
     EnumeratorFunc func, Board &board, uint64_t &id) const
 {
+    // Save the current board state (with walls)
+    Board wallBoard = board;
+    
     for (const auto &pe : m_RowEntries[PrimaryRow]) {
+        // Start fresh - primary piece must be first
+        board = Board();
+        
+        // Add primary row pieces first (so primary piece is at index 0)
         for (const auto &piece : pe.Pieces()) {
             board.AddPiece(piece);
         }
-        PopulateRow(func, board, id, 0, pe.Mask(), pe.Require());
-        for (int i = 0; i < pe.Pieces().size(); i++) {
+        
+        // Then add the walls
+        for (const auto &wallPiece : wallBoard.Pieces()) {
+            board.AddPiece(wallPiece);
+        }
+        
+        // Check if this configuration has any collisions
+        bool hasCollision = false;
+        bb pieceMask = 0;
+        for (const auto &piece : board.Pieces()) {
+            if ((pieceMask & piece.Mask()) != 0) {
+                hasCollision = true;
+                break;
+            }
+            pieceMask |= piece.Mask();
+        }
+        
+        if (hasCollision) {
+            continue;
+        }
+        
+        PopulateRow(func, board, id, 0, board.Mask(), pe.Require());
+        
+        // Remove all pieces to prepare for next iteration
+        while (board.Pieces().size() > wallBoard.Pieces().size()) {
             board.PopPiece();
         }
     }
@@ -58,20 +99,7 @@ void Enumerator::PopulateRow(
     EnumeratorFunc func, Board &board, uint64_t &id, int y,
     bb mask, bb require) const
 {
-    if (DoWalls) {
-        int walls = 0;
-        for (const auto &piece : board.Pieces()) {
-            if (piece.Fixed()) {
-                walls++;
-            }
-        }
-        if (walls > MaxWalls) {
-            return;
-        }
-        if (y >= BoardSize && walls < MinWalls) {
-            return;
-        }
-    }
+    // Skip wall checks since we have fixed corner walls
     if (y >= BoardSize) {
         PopulateColumn(func, board, id, 0, mask, require);
         return;
@@ -138,7 +166,8 @@ void Enumerator::ComputeGroups(std::vector<int> &sizes, int sum) {
             walls++;
         }
     }
-    if (walls > MaxWalls) {
+    // Don't allow any walls in groups since we have fixed corner walls
+    if (walls > 0) {
         return;
     }
     m_Groups.push_back(sizes);
@@ -179,9 +208,7 @@ void Enumerator::ComputeRow(int y, int x, std::vector<Piece> &pieces) {
                 walls++;
             }
         }
-        if (walls > MaxWalls) {
-            return;
-        }
+        // Don't check for walls here since we have fixed corner walls
         if (n >= BoardSize) {
             return;
         }

@@ -173,11 +173,18 @@ void Board::Moves(std::vector<Move> &moves) const {
 
 std::string Board::String() const {
     std::string s(BoardSize2, '.');
+    int nonWallIndex = 0;
     for (int i = 0; i < m_Pieces.size(); i++) {
         const Piece &piece = m_Pieces[i];
-        const char c = piece.Fixed() ? 'x' : 'A' + i;
+        char c;
+        if (piece.Fixed()) {
+            c = 'x';
+        } else {
+            c = 'A' + nonWallIndex;
+            nonWallIndex++;
+        }
         int p = piece.Position();
-        for (int i = 0; i < piece.Size(); i++) {
+        for (int j = 0; j < piece.Size(); j++) {
             s[p] = c;
             p += piece.Stride();
         }
@@ -191,9 +198,16 @@ std::string Board::String2D() const {
         const int p = y * (BoardSize + 1) + BoardSize;
         s[p] = '\n';
     }
+    int nonWallIndex = 0;
     for (int i = 0; i < m_Pieces.size(); i++) {
         const Piece &piece = m_Pieces[i];
-        const char c = piece.Fixed() ? 'x' : 'A' + i;
+        char c;
+        if (piece.Fixed()) {
+            c = 'x';
+        } else {
+            c = 'A' + nonWallIndex;
+            nonWallIndex++;
+        }
         int stride = piece.Stride();
         if (stride == V) {
             stride++;
@@ -201,7 +215,7 @@ std::string Board::String2D() const {
         const int y = piece.Position() / BoardSize;
         const int x = piece.Position() % BoardSize;
         int p = y * (BoardSize + 1) + x;
-        for (int i = 0; i < piece.Size(); i++) {
+        for (int j = 0; j < piece.Size(); j++) {
             s[p] = c;
             p += stride;
         }
