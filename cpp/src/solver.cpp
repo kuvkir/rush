@@ -50,7 +50,7 @@ bool Solver::Search(Board &board, int depth, int maxDepth, int previousPiece) {
     const bb boardMask = board.Mask();
     const auto &primary = board.Pieces()[0];
     const int i0 = primary.Position() + primary.Size();
-    const int i1 = Target + primary.Size() - 1;
+    const int i1 = board.Config().target + primary.Size() - 1;
     int minMoves = 0;
     for (int i = i0; i <= i1; i++) {
         const bb mask = (bb)1 << i;

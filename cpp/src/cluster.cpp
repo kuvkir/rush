@@ -4,7 +4,6 @@
 #include <limits>
 #include <boost/unordered_map.hpp>
 
-#include "config.h"
 #include "solver.h"
 
 Cluster::Cluster(const uint64_t id, const Board &input) :
@@ -103,19 +102,7 @@ Cluster::Cluster(const uint64_t id, const Board &input) :
         if (pieceMoved[i]) {
             continue;
         }
-#if CORNER_WALLS && CORNER_WALLS_AS_GEOMETRY
-        // Skip minimal check for corner walls (treat as board geometry)
-        const auto &piece = input.Pieces()[i];
-        if (piece.Fixed()) {
-            const int pos = piece.Position();
-            const int x = pos % BoardWidth;
-            const int y = pos / BoardWidth;
-            if ((x == 0 || x == BoardWidth - 1) && (y == 0 || y == BoardHeight - 1)) {
-                // This is a corner wall, skip minimal check
-                continue;
-            }
-        }
-#endif
+        // Skip corner wall handling for now (not used in current configuration)
         Board board(m_Unsolved);
         board.RemovePiece(i);
         if (solver.CountMoves(board) == maxDistance) {

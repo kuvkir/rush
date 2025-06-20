@@ -4,16 +4,25 @@
 #include <map>
 
 Board::Board() :
+    m_config(getDefaultConfig()),
     m_HorzMask(0),
     m_VertMask(0)
 {
 }
 
-Board::Board(std::string desc) :
+Board::Board(const BoardConfig& config) :
+    m_config(config),
     m_HorzMask(0),
     m_VertMask(0)
 {
-    if (desc.length() != BoardSize2) {
+}
+
+Board::Board(const std::string& desc) :
+    m_config(BoardConfig::fromString(desc)),
+    m_HorzMask(0),
+    m_VertMask(0)
+{
+    if (desc.length() != m_config.size2) {
         throw "board string is wrong length";
     }
 
@@ -36,14 +45,14 @@ Board::Board(std::string desc) :
     m_Pieces.reserve(labels.size());
     for (const char label : labels) {
         const auto &ps = positions[label];
-        if (ps.size() < MinPieceSize) {
+        if (ps.size() < m_config.minPieceSize) {
             throw "piece size < MinPieceSize";
         }
-        if (ps.size() > MaxPieceSize) {
+        if (ps.size() > m_config.maxPieceSize) {
             throw "piece size > MaxPieceSize";
         }
         const int stride = ps[1] - ps[0];
-        if (stride != H && stride != V) {
+        if (stride != m_config.H && stride != m_config.V) {
             throw "invalid piece shape";
         }
         for (int i = 2; i < ps.size(); i++) {
@@ -57,7 +66,7 @@ Board::Board(std::string desc) :
 
 void Board::AddPiece(const Piece &piece) {
     m_Pieces.push_back(piece);
-    if (piece.Stride() == H) {
+    if (piece.Stride() == m_config.H) {
         m_HorzMask |= piece.Mask();
     } else {
         m_VertMask |= piece.Mask();
@@ -66,7 +75,7 @@ void Board::AddPiece(const Piece &piece) {
 
 void Board::PopPiece() {
     const auto &piece = m_Pieces.back();
-    if (piece.Stride() == H) {
+    if (piece.Stride() == m_config.H) {
         m_HorzMask &= ~piece.Mask();
     } else {
         m_VertMask &= ~piece.Mask();
@@ -76,7 +85,7 @@ void Board::PopPiece() {
 
 void Board::RemovePiece(const int i) {
     const auto &piece = m_Pieces[i];
-    if (piece.Stride() == H) {
+    if (piece.Stride() == m_config.H) {
         m_HorzMask &= ~piece.Mask();
     } else {
         m_VertMask &= ~piece.Mask();
@@ -86,7 +95,7 @@ void Board::RemovePiece(const int i) {
 
 void Board::DoMove(const int i, const int steps) {
     auto &piece = m_Pieces[i];
-    if (piece.Stride() == H) {
+    if (piece.Stride() == m_config.H) {
         m_HorzMask &= ~piece.Mask();
         piece.Move(steps);
         m_HorzMask |= piece.Mask();
@@ -113,57 +122,57 @@ void Board::Moves(std::vector<Move> &moves) const {
         if (piece.Fixed()) {
             continue;
         }
-        if (piece.Stride() == H) {
+        if (piece.Stride() == m_config.H) {
             // reverse / left (negative steps)
-            if ((piece.Mask() & LeftColumn) == 0) {
-                bb mask = (piece.Mask() >> H) & ~piece.Mask();
+            if ((piece.Mask() & LeftColumn()) == 0) {
+                bb mask = (piece.Mask() >> m_config.H) & ~piece.Mask();
                 int steps = -1;
                 while ((boardMask & mask) == 0) {
                     moves.emplace_back(Move(i, steps));
-                    if ((mask & LeftColumn) != 0) {
+                    if ((mask & LeftColumn()) != 0) {
                         break;
                     }
-                    mask >>= H;
+                    mask >>= m_config.H;
                     steps--;
                 }
             }
             // forward / right (positive steps)
-            if ((piece.Mask() & RightColumn) == 0) {
-                bb mask = (piece.Mask() << H) & ~piece.Mask();
+            if ((piece.Mask() & RightColumn()) == 0) {
+                bb mask = (piece.Mask() << m_config.H) & ~piece.Mask();
                 int steps = 1;
                 while ((boardMask & mask) == 0) {
                     moves.emplace_back(Move(i, steps));
-                    if ((mask & RightColumn) != 0) {
+                    if ((mask & RightColumn()) != 0) {
                         break;
                     }
-                    mask <<= H;
+                    mask <<= m_config.H;
                     steps++;
                 }
             }
         } else {
             // reverse / up (negative steps)
-            if ((piece.Mask() & TopRow) == 0) {
-                bb mask = (piece.Mask() >> V) & ~piece.Mask();
+            if ((piece.Mask() & TopRow()) == 0) {
+                bb mask = (piece.Mask() >> m_config.V) & ~piece.Mask();
                 int steps = -1;
                 while ((boardMask & mask) == 0) {
                     moves.emplace_back(Move(i, steps));
-                    if ((mask & TopRow) != 0) {
+                    if ((mask & TopRow()) != 0) {
                         break;
                     }
-                    mask >>= V;
+                    mask >>= m_config.V;
                     steps--;
                 }
             }
             // forward / down (positive steps)
-            if ((piece.Mask() & BottomRow) == 0) {
-                bb mask = (piece.Mask() << V) & ~piece.Mask();
+            if ((piece.Mask() & BottomRow()) == 0) {
+                bb mask = (piece.Mask() << m_config.V) & ~piece.Mask();
                 int steps = 1;
                 while ((boardMask & mask) == 0) {
                     moves.emplace_back(Move(i, steps));
-                    if ((mask & BottomRow) != 0) {
+                    if ((mask & BottomRow()) != 0) {
                         break;
                     }
-                    mask <<= V;
+                    mask <<= m_config.V;
                     steps++;
                 }
             }
@@ -172,7 +181,7 @@ void Board::Moves(std::vector<Move> &moves) const {
 }
 
 std::string Board::String() const {
-    std::string s(BoardSize2, '.');
+    std::string s(m_config.size2, '.');
     int nonWallIndex = 0;
     for (int i = 0; i < m_Pieces.size(); i++) {
         const Piece &piece = m_Pieces[i];
@@ -193,9 +202,9 @@ std::string Board::String() const {
 }
 
 std::string Board::String2D() const {
-    std::string s(BoardWidth * (BoardHeight + 1), '.');
-    for (int y = 0; y < BoardHeight; y++) {
-        const int p = y * (BoardWidth + 1) + BoardWidth;
+    std::string s(m_config.width * (m_config.height + 1), '.');
+    for (int y = 0; y < m_config.height; y++) {
+        const int p = y * (m_config.width + 1) + m_config.width;
         s[p] = '\n';
     }
     int nonWallIndex = 0;
@@ -209,12 +218,12 @@ std::string Board::String2D() const {
             nonWallIndex++;
         }
         int stride = piece.Stride();
-        if (stride == V) {
+        if (stride == m_config.V) {
             stride++;
         }
-        const int y = piece.Position() / BoardWidth;
-        const int x = piece.Position() % BoardWidth;
-        int p = y * (BoardWidth + 1) + x;
+        const int y = piece.Position() / m_config.width;
+        const int x = piece.Position() % m_config.width;
+        int p = y * (m_config.width + 1) + x;
         for (int j = 0; j < piece.Size(); j++) {
             s[p] = c;
             p += stride;
@@ -232,4 +241,39 @@ bool operator<(const Board &b1, const Board &b2) {
         return b1.VertMask() < b2.VertMask();
     }
     return b1.HorzMask() < b2.HorzMask();
+}
+
+// Dynamic mask getters
+bb Board::TopRow() const {
+    bb mask = 0;
+    for (int x = 0; x < m_config.width; x++) {
+        mask |= (bb)1 << x;
+    }
+    return mask;
+}
+
+bb Board::BottomRow() const {
+    bb mask = 0;
+    const int y = m_config.height - 1;
+    for (int x = 0; x < m_config.width; x++) {
+        mask |= (bb)1 << (y * m_config.width + x);
+    }
+    return mask;
+}
+
+bb Board::LeftColumn() const {
+    bb mask = 0;
+    for (int y = 0; y < m_config.height; y++) {
+        mask |= (bb)1 << (y * m_config.width);
+    }
+    return mask;
+}
+
+bb Board::RightColumn() const {
+    bb mask = 0;
+    const int x = m_config.width - 1;
+    for (int y = 0; y < m_config.height; y++) {
+        mask |= (bb)1 << (y * m_config.width + x);
+    }
+    return mask;
 }

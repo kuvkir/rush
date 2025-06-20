@@ -1,13 +1,12 @@
 #pragma once
 
-#include <boost/container/small_vector.hpp>
 #include <iostream>
 #include <string>
 #include <tuple>
 #include <vector>
 
 #include "bb.h"
-#include "config.h"
+#include "board_config.h"
 #include "move.h"
 #include "piece.h"
 
@@ -15,8 +14,9 @@ typedef std::tuple<bb, bb> BoardKey;
 
 class Board {
 public:
-    Board();
-    explicit Board(std::string desc);
+    Board();  // Uses default 6x6
+    explicit Board(const BoardConfig& config);
+    explicit Board(const std::string& desc);  // Auto-detects size from string
 
     bb Mask() const {
         return m_HorzMask | m_VertMask;
@@ -34,12 +34,16 @@ public:
         return std::make_tuple(m_HorzMask, m_VertMask);
     }
 
-    const boost::container::small_vector<Piece, BoardSize2> &Pieces() const {
+    const std::vector<Piece> &Pieces() const {
         return m_Pieces;
+    }
+    
+    const BoardConfig& Config() const {
+        return m_config;
     }
 
     bool Solved() const {
-        return m_Pieces[0].Position() == Target;
+        return m_Pieces[0].Position() == m_config.target;
     }
 
     void AddPiece(const Piece &piece);
@@ -56,9 +60,16 @@ public:
     std::string String2D() const;
 
 private:
+    BoardConfig m_config;
     bb m_HorzMask;
     bb m_VertMask;
-    boost::container::small_vector<Piece, BoardSize2> m_Pieces;
+    std::vector<Piece> m_Pieces;
+    
+    // Dynamic mask getters
+    bb TopRow() const;
+    bb BottomRow() const;
+    bb LeftColumn() const;
+    bb RightColumn() const;
 };
 
 std::ostream& operator<<(std::ostream &stream, const Board &board);

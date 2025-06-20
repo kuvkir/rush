@@ -5,11 +5,12 @@
 
 #include "bb.h"
 #include "board.h"
+#include "board_config.h"
 #include "piece.h"
 
 class PositionEntry {
 public:
-    PositionEntry(const int group, const std::vector<Piece> &pieces);
+    PositionEntry(const int group, const std::vector<Piece> &pieces, const BoardConfig& config);
 
     int Group() const {
         return m_Group;
@@ -38,7 +39,7 @@ typedef std::function<void(uint64_t id, const Board &)> EnumeratorFunc;
 
 class Enumerator {
 public:
-    Enumerator();
+    explicit Enumerator(const BoardConfig& config);
     void Enumerate(EnumeratorFunc func);
 
 private:
@@ -58,6 +59,7 @@ private:
     void ComputeColumn(int x, int y, std::vector<Piece> &pieces);
     void ComputePositionEntries();
 
+    BoardConfig m_config;
     std::vector<std::vector<int>> m_Groups;
     std::vector<std::vector<PositionEntry>> m_RowEntries;
     std::vector<std::vector<PositionEntry>> m_ColumnEntries;

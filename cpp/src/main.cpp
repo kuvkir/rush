@@ -6,6 +6,7 @@
 #include <thread>
 
 #include "board.h"
+#include "board_config.h"
 #include "cluster.h"
 #include "config.h"
 #include "enumerator.h"
@@ -16,8 +17,8 @@ using namespace std::chrono;
 
 typedef std::function<void(const Cluster &)> CallbackFunc;
 
-void worker(const int wi, const int wn, CallbackFunc func) {
-    Enumerator enumerator;
+void worker(const int wi, const int wn, CallbackFunc func, const BoardConfig& config) {
+    Enumerator enumerator(config);
     enumerator.Enumerate([&](uint64_t id, const Board &board) {
         if (id % wn != wi) {
             return;
@@ -27,7 +28,25 @@ void worker(const int wi, const int wn, CallbackFunc func) {
     });
 }
 
-int main() {
+int main(int argc, char* argv[]) {
+    // Parse command line arguments for board size
+    BoardConfig config = getDefaultConfig();  // Default 6x6
+    
+    if (argc > 1) {
+        std::string arg = argv[1];
+        if (arg == "5x5") config = BoardConfig(5, 5);
+        else if (arg == "5x6") config = BoardConfig(5, 6);
+        else if (arg == "6x6") config = BoardConfig(6, 6);
+        else if (arg == "6x7") config = BoardConfig(6, 7);
+        else if (arg == "7x7") config = BoardConfig(7, 7);
+        else {
+            cerr << "Usage: " << argv[0] << " [5x5|5x6|6x6|6x7|7x7]" << endl;
+            cerr << "Default is 6x6" << endl;
+            return 1;
+        }
+    }
+    
+    cerr << "Running with board size " << config.width << "x" << config.height << endl;
     // uint64_t lastID = 0;
     // Enumerator enumerator;
     // enumerator.Enumerate([&](uint64_t id, const Board &board) {
@@ -59,7 +78,7 @@ int main() {
 
         maxSeenID = std::max(maxSeenID, c.ID());
         const Board &unsolved = c.Unsolved();
-        const double pct = (double)maxSeenID / (double)MaxID;
+        const double pct = (double)maxSeenID / (double)config.getMaxID();
         const double hrs = duration<double>(steady_clock::now() - start).count() / 3600;
         const double est = pct > 0 ? hrs / pct : 0;
 
@@ -93,14 +112,14 @@ int main() {
     std::vector<std::thread> threads;
     const int wn = NumWorkers;
     for (int wi = 0; wi < wn; wi++) {
-        threads.push_back(std::thread(worker, wi, wn, callback));
+        threads.push_back(std::thread(worker, wi, wn, callback, config));
     }
     for (int wi = 0; wi < wn; wi++) {
         threads[wi].join();
     }
 
     // print final stats to stderr
-    const double pct = (double)maxSeenID / (double)MaxID;
+    const double pct = (double)maxSeenID / (double)config.getMaxID();
     const double hrs = duration<double>(steady_clock::now() - start).count() / 3600;
     const double est = pct > 0 ? hrs / pct : 0;
     cerr

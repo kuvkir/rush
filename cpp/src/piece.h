@@ -1,7 +1,6 @@
 #pragma once
 
 #include "bb.h"
-#include "config.h"
 
 class Piece {
 public:

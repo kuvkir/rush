@@ -3,6 +3,7 @@
 #include <chrono>
 #include <iomanip>
 #include "src/board.h"
+#include "src/board_config.h"
 #include "src/solver.h"
 #include "src/cluster.h"
 

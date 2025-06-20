@@ -3,9 +3,7 @@
 #include <algorithm>
 #include <cmath>
 
-#include "config.h"
-
-PositionEntry::PositionEntry(const int group, const std::vector<Piece> &pieces) :
+PositionEntry::PositionEntry(const int group, const std::vector<Piece> &pieces, const BoardConfig& config) :
     m_Group(group),
     m_Pieces(pieces),
     m_Mask(0),
@@ -20,22 +18,31 @@ PositionEntry::PositionEntry(const int group, const std::vector<Piece> &pieces) 
     }
     if (!pieces.empty()) {
         const int stride = pieces[0].Stride();
-        if (stride == H) {
-            m_Require = (movableMask >> stride) & ~m_Mask & ~RightColumn;
+        if (stride == config.H) {
+            // Generate right column mask dynamically
+            bb rightColumn = 0;
+            for (int y = 0; y < config.height; y++) {
+                rightColumn |= (bb)1 << (y * config.width + config.width - 1);
+            }
+            m_Require = (movableMask >> stride) & ~m_Mask & ~rightColumn;
         } else {
             m_Require = (movableMask >> stride) & ~m_Mask;
         }
     }
 }
 
-Enumerator::Enumerator() {
+Enumerator::Enumerator(const BoardConfig& config) : m_config(config) {
+    m_RowEntries.resize(m_config.height);
+    m_ColumnEntries.resize(m_config.width);
+    
     std::vector<int> sizes;
     ComputeGroups(sizes, 0);
+    
     ComputePositionEntries();
 }
 
 void Enumerator::Enumerate(EnumeratorFunc func) {
-    Board board;
+    Board board(m_config);
     uint64_t id = 0;
     PopulatePrimaryRow(func, board, id);
 }
@@ -43,7 +50,7 @@ void Enumerator::Enumerate(EnumeratorFunc func) {
 void Enumerator::PopulatePrimaryRow(
     EnumeratorFunc func, Board &board, uint64_t &id) const
 {
-    for (const auto &pe : m_RowEntries[PrimaryRow]) {
+    for (const auto &pe : m_RowEntries[m_config.primaryRow]) {
         for (const auto &piece : pe.Pieces()) {
             board.AddPiece(piece);
         }
@@ -58,28 +65,22 @@ void Enumerator::PopulateRow(
     EnumeratorFunc func, Board &board, uint64_t &id, int y,
     bb mask, bb require) const
 {
-    if (DoWalls) {
-        int walls = 0;
-        for (const auto &piece : board.Pieces()) {
-            if (piece.Fixed()) {
-                walls++;
-            }
-        }
-        if (y >= BoardHeight && walls > MaxWalls) {
-            return;
-        }
-        if (y >= BoardHeight && walls < MinWalls) {
-            return;
-        }
-    }
-    if (y >= BoardHeight) {
+    // Skip wall handling for now (DoWalls is always false in current config)
+    if (y >= m_config.height) {
         PopulateColumn(func, board, id, 0, mask, require);
         return;
     }
-    if (y == PrimaryRow) {
+    if (y == m_config.primaryRow) {
         PopulateRow(func, board, id, y + 1, mask, require);
         return;
     }
+    
+    // Try placing nothing in this row if allowed
+    if (m_RowEntries[y].empty()) {
+        PopulateRow(func, board, id, y + 1, mask, require);
+        return;
+    }
+    
     for (const auto &pe : m_RowEntries[y]) {
         if ((mask & pe.Mask()) != 0) {
             continue;
@@ -100,7 +101,7 @@ void Enumerator::PopulateColumn(
     EnumeratorFunc func, Board &board, uint64_t &id, int x,
     bb mask, bb require) const
 {
-    if (x >= BoardWidth) {
+    if (x >= m_config.width) {
         func(id, board);
         id++;
         return;
@@ -112,7 +113,12 @@ void Enumerator::PopulateColumn(
         if ((mask & pe.Require()) != pe.Require()) {
             continue;
         }
-        const bb columnRequire = require & ColumnMasks[x];
+        // Generate column mask dynamically
+        bb columnMask = 0;
+        for (int y = 0; y < m_config.height; y++) {
+            columnMask |= (bb)1 << (y * m_config.width + x);
+        }
+        const bb columnRequire = require & columnMask;
         if ((pe.Mask() & columnRequire) != columnRequire) {
             continue;
         }
@@ -129,13 +135,13 @@ void Enumerator::PopulateColumn(
 }
 
 void Enumerator::ComputeGroups(std::vector<int> &sizes, int sum) {
+    m_Groups.push_back(sizes);
     // Use the maximum dimension to ensure we compute enough groups
-    const int maxDimension = std::max(BoardWidth, BoardHeight);
+    const int maxDimension = std::max(m_config.width, m_config.height);
     if (sum >= maxDimension) {
         return;
     }
-    m_Groups.push_back(sizes);
-    for (int s = MinPieceSize; s <= MaxPieceSize; s++) {
+    for (int s = m_config.minPieceSize; s <= m_config.maxPieceSize; s++) {
         sizes.push_back(s);
         ComputeGroups(sizes, sum + s);
         sizes.pop_back();
@@ -150,183 +156,109 @@ int Enumerator::GroupForPieces(const std::vector<Piece> &pieces) {
             sizes.push_back(piece.Size());
         }
     }
+    std::sort(sizes.begin(), sizes.end());
     
-    // Find matching group
+    // Find group index
     for (int i = 0; i < m_Groups.size(); i++) {
-        const auto &group = m_Groups[i];
-        if (group.size() != sizes.size()) {
-            continue;
-        }
-        bool ok = true;
-        for (int j = 0; j < group.size(); j++) {
-            if (group[j] != sizes[j]) {
-                ok = false;
-                break;
-            }
-        }
-        if (ok) {
+        if (m_Groups[i] == sizes) {
             return i;
         }
     }
+    
+    
     throw "GroupForPieces failed";
 }
 
 void Enumerator::ComputeRow(int y, int x, std::vector<Piece> &pieces) {
-    if (x >= BoardWidth) {
-        int n = 0;
-        int walls = 0;
-        for (const auto &piece : pieces) {
-            n += piece.Size();
-            if (piece.Fixed()) {
-                walls++;
-            }
-        }
-        if (walls > MaxWalls) {
-            return;
-        }
-        if (n >= BoardWidth) {
-            return;
-        }
-        std::vector<Piece> ps = pieces;
-        // special constraints for the primary row
-        if (y == PrimaryRow) {
-            // can only have one non-wall (the primary piece itself)
-            const int nonWalls = ps.size() - walls;
-            if (nonWalls != 1) {
-                return;
-            }
-            // find the non-wall
-            int primaryIndex = -1;
-            for (int i = 0; i < ps.size(); i++) {
-                if (!ps[i].Fixed()) {
-                    primaryIndex = i;
-                    break;
-                }
-            }
-            if (primaryIndex < 0) {
-                return;
-            }
-            // swap it to position zero
-            std::swap(ps[0], ps[primaryIndex]);
-            // check its size
-            if (ps[0].Size() != PrimarySize) {
-                return;
-            }
-            // no walls can appear to the right of the primary piece
-            for (int i = 1; i < ps.size(); i++) {
-                if (ps[i].Position() > ps[0].Position()) {
-                    return;
-                }
-            }
-        }
-        const int group = GroupForPieces(ps);
-        m_RowEntries[y].emplace_back(PositionEntry(group, ps));
+    if (x >= m_config.width) {
+        const int group = pieces.empty() ? 0 : GroupForPieces(pieces);
+        m_RowEntries[y].emplace_back(PositionEntry(group, pieces, m_config));
         return;
     }
     
-#if CORNER_WALLS
-    // Check if we're at a corner position that needs a wall
-    bool isCorner = false;
-    if ((y == 0 || y == BoardHeight - 1) && (x == 0 || x == BoardWidth - 1)) {
-        isCorner = true;
-    }
+    // Try placing a wall (removed for simplicity)
     
-    if (isCorner) {
-        // Must place a wall here
-        const int p = y * BoardWidth + x;
-        pieces.emplace_back(Piece(p, 1, H));  // Size 1 = wall
-        ComputeRow(y, x + 1, pieces);
-        pieces.pop_back();
+    // Try not placing a piece
+    ComputeRow(y, x + 1, pieces);
+    
+    // Skip primary row - it's handled separately
+    if (y == m_config.primaryRow) {
         return;
     }
-#endif
     
-    // Enumerate pieces normally
-    for (int s = MinPieceSize; s <= MaxPieceSize; s++) {
-#if CORNER_WALLS
-        if (s == 1) {
-            // Skip walls for non-corner positions when using fixed corners
-            continue;
+    // Try placing a piece
+    const int n = m_config.width - x;
+    for (int s = m_config.minPieceSize; s <= m_config.maxPieceSize; s++) {
+        if (s > n) {
+            break;
         }
-#endif
-        if (x + s > BoardWidth) {
-            continue;
+        if (x + s > m_config.width) {
+            break;
         }
-        const int p = y * BoardWidth + x;
-        pieces.emplace_back(Piece(p, s, H));
+        const int p = y * m_config.width + x;
+        pieces.emplace_back(Piece(p, s, m_config.H));
         ComputeRow(y, x + s, pieces);
         pieces.pop_back();
     }
-    ComputeRow(y, x + 1, pieces);
 }
 
 void Enumerator::ComputeColumn(int x, int y, std::vector<Piece> &pieces) {
-    if (y >= BoardHeight) {
-        int n = 0;
-        for (const auto &piece : pieces) {
-            n += piece.Size();
-        }
-        if (n >= BoardHeight) {
-            return;
-        }
-        const int group = GroupForPieces(pieces);
-        m_ColumnEntries[x].emplace_back(PositionEntry(group, pieces));
+    if (y >= m_config.height) {
+        const int group = pieces.empty() ? 0 : GroupForPieces(pieces);
+        m_ColumnEntries[x].emplace_back(PositionEntry(group, pieces, m_config));
         return;
     }
     
-#if CORNER_WALLS
-    // Check if we're at a corner position that needs a wall
-    bool isCorner = false;
-    if ((x == 0 || x == BoardHeight - 1) && (y == 0 || y == BoardHeight - 1)) {
-        isCorner = true;
-    }
+    // Try not placing a piece
+    ComputeColumn(x, y + 1, pieces);
     
-    if (isCorner) {
-        // Corner positions are handled by rows, skip in columns
-        ComputeColumn(x, y + 1, pieces);
-        return;
-    }
-#endif
-    
-    // Enumerate pieces normally (no vertical walls)
-    for (int s = MinPieceSize; s <= MaxPieceSize; s++) {
-        if (s == 1) {
-            // no "vertical" walls
-            continue;
+    // Try placing a piece
+    const int n = m_config.height - y;
+    for (int s = m_config.minPieceSize; s <= m_config.maxPieceSize; s++) {
+        if (s > n) {
+            break;
         }
-        if (y + s > BoardHeight) {
-            continue;
+        if (y + s > m_config.height) {
+            break;
         }
-        const int p = y * BoardWidth + x;
-        pieces.emplace_back(Piece(p, s, V));
+        const int p = y * m_config.width + x;
+        pieces.emplace_back(Piece(p, s, m_config.V));
         ComputeColumn(x, y + s, pieces);
         pieces.pop_back();
     }
-    ComputeColumn(x, y + 1, pieces);
 }
 
 void Enumerator::ComputePositionEntries() {
-    m_RowEntries.resize(BoardHeight);
-    m_ColumnEntries.resize(BoardWidth);
-    std::vector<Piece> pieces;
-    for (int i = 0; i < BoardHeight; i++) {
-        ComputeRow(i, 0, pieces);
+    // Ensure arrays are already sized from constructor
+    if (m_RowEntries.size() != m_config.height) {
+        m_RowEntries.resize(m_config.height);
     }
-    for (int i = 0; i < BoardWidth; i++) {
+    if (m_ColumnEntries.size() != m_config.width) {
+        m_ColumnEntries.resize(m_config.width);
+    }
+    
+    // Compute entries for all rows except primary row
+    for (int i = 0; i < m_config.height; i++) {
+        if (i != m_config.primaryRow) {
+            std::vector<Piece> pieces;
+            ComputeRow(i, 0, pieces);
+        }
+    }
+    
+    // Compute entries for all columns
+    for (int i = 0; i < m_config.width; i++) {
+        std::vector<Piece> pieces;
         ComputeColumn(i, 0, pieces);
     }
-    for (int i = 0; i < BoardHeight; i++) {
-        std::stable_sort(m_RowEntries[i].begin(), m_RowEntries[i].end(),
-            [](const PositionEntry &a, const PositionEntry &b)
-        {
-            return a.Group() < b.Group();
-        });
-    }
-    for (int i = 0; i < BoardWidth; i++) {
-        std::stable_sort(m_ColumnEntries[i].begin(), m_ColumnEntries[i].end(),
-            [](const PositionEntry &a, const PositionEntry &b)
-        {
-            return a.Group() < b.Group();
-        });
+    
+    // Add special handling for primary row
+    // The primary piece can be placed at any position where it fits
+    for (int x = 0; x + m_config.primarySize <= m_config.width; x++) {
+        std::vector<Piece> pieces;
+        const int p = m_config.primaryRow * m_config.width + x;
+        pieces.emplace_back(Piece(p, m_config.primarySize, m_config.H));
+        // Get the group for this single primary piece
+        const int group = GroupForPieces(pieces);
+        m_RowEntries[m_config.primaryRow].emplace_back(PositionEntry(group, pieces, m_config));
     }
 }
