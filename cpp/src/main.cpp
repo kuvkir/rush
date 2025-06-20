@@ -29,24 +29,38 @@ void worker(const int wi, const int wn, CallbackFunc func, const BoardConfig& co
 }
 
 int main(int argc, char* argv[]) {
-    // Parse command line arguments for board size
+    // Parse command line arguments
     BoardConfig config = getDefaultConfig();  // Default 6x6
+    int numThreads = NumWorkers;  // Default from config.h
     
-    if (argc > 1) {
-        std::string arg = argv[1];
+    // Parse arguments
+    for (int i = 1; i < argc; i++) {
+        std::string arg = argv[i];
+        
+        // Check for board size
         if (arg == "5x5") config = BoardConfig(5, 5);
         else if (arg == "5x6") config = BoardConfig(5, 6);
         else if (arg == "6x6") config = BoardConfig(6, 6);
         else if (arg == "6x7") config = BoardConfig(6, 7);
         else if (arg == "7x7") config = BoardConfig(7, 7);
+        // Check for threads parameter
+        else if (arg == "--threads" && i + 1 < argc) {
+            numThreads = std::stoi(argv[++i]);
+            if (numThreads < 1 || numThreads > 100) {
+                cerr << "Error: threads must be between 1 and 100" << endl;
+                return 1;
+            }
+        }
         else {
-            cerr << "Usage: " << argv[0] << " [5x5|5x6|6x6|6x7|7x7]" << endl;
-            cerr << "Default is 6x6" << endl;
+            cerr << "Usage: " << argv[0] << " [5x5|5x6|6x6|6x7|7x7] [--threads N]" << endl;
+            cerr << "Default board size is 6x6" << endl;
+            cerr << "Default threads is " << NumWorkers << endl;
             return 1;
         }
     }
     
-    cerr << "Running with board size " << config.width << "x" << config.height << endl;
+    cerr << "Running with board size " << config.width << "x" << config.height;
+    cerr << " using " << numThreads << " threads" << endl;
     // uint64_t lastID = 0;
     // Enumerator enumerator;
     // enumerator.Enumerate([&](uint64_t id, const Board &board) {
@@ -110,7 +124,7 @@ int main(int argc, char* argv[]) {
     };
 
     std::vector<std::thread> threads;
-    const int wn = NumWorkers;
+    const int wn = numThreads;
     for (int wi = 0; wi < wn; wi++) {
         threads.push_back(std::thread(worker, wi, wn, callback, config));
     }
