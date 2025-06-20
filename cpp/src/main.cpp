@@ -4,6 +4,7 @@
 #include <iostream>
 #include <mutex>
 #include <thread>
+#include <string>
 
 #include "board.h"
 #include "cluster.h"
@@ -13,6 +14,21 @@
 
 using namespace std;
 using namespace std::chrono;
+
+// Define runtime globals
+int BoardSize = 5;
+int PrimaryRow = 2;
+uint64_t MaxID = 268108;
+int NumWorkers = 4;
+int BoardSize2 = 25;
+int Target = 13;
+int V = 5;
+std::array<bb, 7> RowMasks;
+std::array<bb, 7> ColumnMasks;
+bb TopRow;
+bb BottomRow;
+bb LeftColumn;
+bb RightColumn;
 
 typedef std::function<void(const Cluster &)> CallbackFunc;
 
@@ -27,14 +43,68 @@ void worker(const int wi, const int wn, CallbackFunc func) {
     });
 }
 
-int main() {
-    // uint64_t lastID = 0;
-    // Enumerator enumerator;
-    // enumerator.Enumerate([&](uint64_t id, const Board &board) {
-    //     lastID = std::max(lastID, id);
-    // });
-    // cout << lastID << endl;
-    // return 0;
+void initializeBoardConfig() {
+    BoardSize2 = BoardSize * BoardSize;
+    Target = PrimaryRow * BoardSize + BoardSize - PrimarySize;
+    V = BoardSize;
+    
+    // Initialize row masks
+    for (int y = 0; y < BoardSize; y++) {
+        bb mask = 0;
+        for (int x = 0; x < BoardSize; x++) {
+            const int i = y * BoardSize + x;
+            mask |= (bb)1 << i;
+        }
+        RowMasks[y] = mask;
+    }
+    
+    // Initialize column masks
+    for (int x = 0; x < BoardSize; x++) {
+        bb mask = 0;
+        for (int y = 0; y < BoardSize; y++) {
+            const int i = y * BoardSize + x;
+            mask |= (bb)1 << i;
+        }
+        ColumnMasks[x] = mask;
+    }
+    
+    TopRow = RowMasks[0];
+    BottomRow = RowMasks[BoardSize - 1];
+    LeftColumn = ColumnMasks[0];
+    RightColumn = ColumnMasks[BoardSize - 1];
+}
+
+int main(int argc, char* argv[]) {
+    // Parse command line arguments
+    for (int i = 1; i < argc; i++) {
+        std::string arg = argv[i];
+        if (arg == "5x5") {
+            BoardSize = 5;
+            PrimaryRow = 2;
+            MaxID = 268108;
+        } else if (arg == "6x6") {
+            BoardSize = 6;
+            PrimaryRow = 2;
+            MaxID = 243502785;
+        } else if (arg == "7x7") {
+            BoardSize = 7;
+            PrimaryRow = 3;  // Exit row 3 for 7x7
+            MaxID = 561276504436;
+        } else if (arg == "--threads" && i + 1 < argc) {
+            NumWorkers = std::stoi(argv[++i]);
+        } else {
+            cerr << "Usage: " << argv[0] << " [5x5|6x6|7x7] [--threads N]" << endl;
+            return 1;
+        }
+    }
+    
+    // Initialize board configuration
+    initializeBoardConfig();
+    
+    cerr << "Board size: " << BoardSize << "x" << BoardSize << endl;
+    cerr << "Primary row: " << PrimaryRow << endl;
+    cerr << "Threads: " << NumWorkers << endl;
+    cerr << "MaxID: " << MaxID << endl;
 
     mutex m;
 
@@ -91,11 +161,10 @@ int main() {
     };
 
     std::vector<std::thread> threads;
-    const int wn = NumWorkers;
-    for (int wi = 0; wi < wn; wi++) {
-        threads.push_back(std::thread(worker, wi, wn, callback));
+    for (int wi = 0; wi < NumWorkers; wi++) {
+        threads.push_back(std::thread(worker, wi, NumWorkers, callback));
     }
-    for (int wi = 0; wi < wn; wi++) {
+    for (int wi = 0; wi < NumWorkers; wi++) {
         threads[wi].join();
     }
 

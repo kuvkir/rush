@@ -34,7 +34,7 @@ public:
         return std::make_tuple(m_HorzMask, m_VertMask);
     }
 
-    const boost::container::small_vector<Piece, BoardSize2> &Pieces() const {
+    const boost::container::small_vector<Piece, 49> &Pieces() const {  // Max size for 7x7
         return m_Pieces;
     }
 
@@ -58,7 +58,7 @@ public:
 private:
     bb m_HorzMask;
     bb m_VertMask;
-    boost::container::small_vector<Piece, BoardSize2> m_Pieces;
+    boost::container::small_vector<Piece, 49> m_Pieces;  // Max size for 7x7
 };
 
 std::ostream& operator<<(std::ostream &stream, const Board &board);
