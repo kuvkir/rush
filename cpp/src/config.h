@@ -5,13 +5,13 @@
 #include "bb.h"
 
 // Board dimensions
-#define BOARD_WIDTH 5
-#define BOARD_HEIGHT 6
+#define BOARD_WIDTH 6
+#define BOARD_HEIGHT 7
 
 const int BoardWidth = BOARD_WIDTH;
 const int BoardHeight = BOARD_HEIGHT;
 const int BoardSize = BoardWidth;  // Keep for compatibility, will phase out
-const int PrimaryRow = 2;
+const int PrimaryRow = (BoardHeight - 1) / 2;  // Middle row (0-indexed)
 const int PrimarySize = 2;
 const int MinPieceSize = 2;
 const int MaxPieceSize = 3;
@@ -28,7 +28,10 @@ const int MinWalls = 0;  // Standard generation
 const int MaxWalls = 0;  // No walls
 #endif
 
-const int NumWorkers = 4;
+// Number of worker threads for parallel generation
+#define WORKER_THREADS 10
+
+const int NumWorkers = WORKER_THREADS;
 
 // Configuration for corner walls treatment
 // When enabled, corner walls are treated as inherent board geometry
